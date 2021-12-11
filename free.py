@@ -28,9 +28,10 @@ class TDAnanalyser(object):
         if self._duration:
             start = Date(self._duration[0])
             end = Date(self._duration[1])
+            print(f'Duration: {start} ~ {end}')
             for row in self._history:
                 date = Date(row['date'])
-                if start >= date and date <= end:
+                if date >= start and date <= end:
                     stocks[row['code']].append(row)
         else:
             for row in self._history:
@@ -61,6 +62,7 @@ class TDAnanalyser(object):
             elif td_count == 9:
                 try:
                     td_info = {}
+                    td_info['date'] = day_k[cnt]['date']
                     td_info['td_day'] = day_k[cnt]
                     td_info['post_days'] = day_k[cnt+1:cnt+self.post_days+1]
                     td_info['post_high'] = max([float(day['high'])] for day in td_info['post_days'])[0]
@@ -128,7 +130,7 @@ class TDAnanalyser(object):
 
 
 if __name__ == '__main__':
-    tda = TDAnanalyser('./zz500_day_history.csv', ['1/1/2021', '12/1/2021'])
+    tda = TDAnanalyser('./zz500_day_history.csv', ['2021-01-01', '2021-12-01'])
     for code in  random.sample(range(0, len(tda.stock_codes)), 10):
         print(tda.analyse(tda.stock_codes[code]))
 
