@@ -1,6 +1,7 @@
 import json
 import csv
 import random
+from utils import redis_cache
 from timestring import Date
 from collections import defaultdict
 
@@ -13,14 +14,15 @@ class TDAnanalyser(object):
         self._duration = duration
         self._data_path = data_path
         self._history = None
-        self._stocks = None
+        self._stocks = {}
         if data_path:
             self._history = self.csv2json(data_path)
         self.build_stocks()
 
     def csv2json(self, csv_path=None):
         return csv.DictReader(open(csv_path, 'r'))
-
+    
+    @redis_cache(expire=12*3600, prefix='stocks_info', ignore_first_arg=True)
     def build_stocks(self):
         stocks = defaultdict(lambda: [])
         if self._duration:
@@ -37,6 +39,7 @@ class TDAnanalyser(object):
 
     def history(self):
         return self._history
+
     @property
     def stock_codes(self):
         return list(self._stocks.keys())
@@ -125,10 +128,7 @@ class TDAnanalyser(object):
 
 
 if __name__ == '__main__':
-    tda2 = TDAnanalyser('./zz500_day_history.csv', ['1/1/2021', '12/1/2021'])
-    print(len(tda2.stocks['sh.600498']))
-    """
+    tda = TDAnanalyser('./zz500_day_history.csv', ['1/1/2021', '12/1/2021'])
     for code in  random.sample(range(0, len(tda.stock_codes)), 10):
         print(tda.analyse(tda.stock_codes[code]))
-    """
 
