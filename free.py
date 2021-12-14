@@ -1,7 +1,7 @@
 import json
 import csv
 import random
-from profile import A
+from profile import *
 from timestring import Date
 from collections import defaultdict
 from rich.json import JSON 
@@ -11,9 +11,7 @@ from utils import redis_cache
 
 class TDAnanalyser(object):
 
-    def __init__(self, data_path=None, profile=A):
-        print('Profile:')
-        print_json(data=profile)
+    def __init__(self, data_path=None, profile=None):
         self._data_path = data_path
         self._history = None
         self._stocks = {}
@@ -66,7 +64,7 @@ class TDAnanalyser(object):
         td_target = 9 
         td_count = 0
         td_results = []
-        day_k = self._stocks.get(code, [])
+        day_k = self.stocks[code]
         for idx in range(4, len(day_k)):
             if day_k[idx]['close'] < day_k[idx-4]['close'] and td_count < td_target:
                 td_count += 1
@@ -161,35 +159,63 @@ class TDAnanalyser(object):
         res['count'] = len(res['rate_list'])
         return res
 
+    def to_csv(self, data=None, path=None):
+        pass
+
+
+
+class TDATests(object):
+
+    def __init__(self, analyser=None):
+        self._tda = analyser
+
+    def date_range(self, headers=[], data=[], range=[]):
+        pass
+
 
 if __name__ == '__main__':
-    tda = TDAnanalyser(data_path='./zz500_day_history.csv', profile=A)
+    
+    #for p in [A1, A2, A3]:
+    headers = ['stop_profit', 'stop_loss', 'duration', 'numb_profit', 'num_win', 'num_loss', 'num_timeout' ]
+    import csv
+    with open('./report.csv', 'a', newline='') as report:
+        writer = csv.writer(report)
+        writer.writerow(headers)
     total = 0
-    day = Date('2018-01-03')
-    for _ in range(50):
-        day = day + '7d'
-        date = f"{day.year}-{day.month}-{day.day}"
-        print(date)
-        res = tda.analyse_stock(tda.seek_td_by_date(date))
-        #print_json(data=res)
-        #print(f"Profit: {res['profit']} RMB ({res['profit']/1200000*100}%) - {res['code']}: won({res['won']}):lose({res['lose']}):timeout({res['timeout']})")
-        total += res.get('profit', 0)
-        print(f"{date}: {res.get('profit', 0)}RMB ({total}RMB)")
-    """
-    for r in range(10):
-        res = tda.analyse_stock(tda.seek_td_by_date('2021-05-07'))
-        #print_json(data=res)
-        print(f"Profit: {res['profit']} RMB ({res['profit']/1200000*100}%) - {res['code']}: won({res['won']}):lose({res['lose']}):timeout({res['timeout']})")
-        total += res['profit']
-    print(f"Avg. {int(total/10)} RMB")
-    days = ['2021-5-17']
-    date = Date('2021-5-17')
-    temp_val = None
-    for i in range(14):
-        temp_val = date + '7d'
-        print(temp_val)
-        days.append(temp_val._original)
-    for day in days:
-        print(day)
-        print_json(data=tda.analyse_stock(tda.seek_td_by_date(day)))
-    """
+    total_won = 0
+    total_lose = 0
+    total_timeout = 0
+    profile_list = [
+        duration_6days_small_range,
+        duration_8days_small_range,
+        duration_10days_small_range,
+        duration_12days_small_range,
+        duration_6days_big_range,
+        duration_8days_big_range,
+        duration_10days_big_range,
+        duration_12days_big_range
+    ]
+    for p in profile_list:
+        tda = TDAnanalyser(data_path='./zz500_day_history.csv', profile=p)
+        print_json(data=p)
+        for _ in range(20):
+            day = Date('2018-10-15')
+            total = 0
+            total_won = 0
+            total_lose = 0
+            total_timeout = 0
+            for _ in range(60): # seek for continous 50 transation days
+                date = f"{day.year}-{day.month}-{day.day}"
+                res = tda.analyse_stock(tda.seek_td_by_date(date))
+                if res.get('profit', 0):
+                    total += res.get('profit', 0)
+                    total_won += res.get('won', 0)
+                    total_lose += res.get('lose', 0)
+                    total_timeout += res.get('timeout', 0)
+                day = day + '1d'
+            row = [p['duration'], p['stop_profit'], p['stop_loss'], total, total_won, total_lose, total_timeout]
+            print(row)
+            with open(f'./reports/{p}_report.csv', 'a', newline='') as report:
+                writer = csv.writer(report)
+                writer.writerow(row)
+
