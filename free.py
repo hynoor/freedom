@@ -1,5 +1,6 @@
 import json
 import csv
+import re
 import random
 from profile import *
 from timestring import Date
@@ -39,6 +40,7 @@ class TDAnanalyser(object):
             for row in self._history:
                 date = Date(row['date'])
                 if date >= start and date <= end:
+                    row['date'] = re.sub(r'-0', '-', row['date'])
                     stocks[row[by]].append(row)
         else:
             for row in self._history:
@@ -176,9 +178,10 @@ class TDATests(object):
 if __name__ == '__main__':
     
     #for p in [A1, A2, A3]:
+    start_day = '2020-12-28'
     headers = ['stop_profit', 'stop_loss', 'duration', 'numb_profit', 'num_win', 'num_loss', 'num_timeout' ]
     import csv
-    with open('./report.csv', 'a', newline='') as report:
+    with open(f'./{start_day}_report.csv', 'a', newline='') as report:
         writer = csv.writer(report)
         writer.writerow(headers)
     total = 0
@@ -189,25 +192,21 @@ if __name__ == '__main__':
         duration_6days_small_range,
         duration_8days_small_range,
         duration_10days_small_range,
-        duration_12days_small_range,
-        duration_6days_big_range,
-        duration_8days_big_range,
-        duration_10days_big_range,
-        duration_12days_big_range
+        duration_12days_small_range
     ]
     for p in profile_list:
         tda = TDAnanalyser(data_path='./zz500_day_history.csv', profile=p)
         print_json(data=p)
-        for _ in range(20):
-            day = Date('2018-10-15')
+        for _ in range(5):
+            day = Date(start_day)
             total = 0
             total_won = 0
             total_lose = 0
             total_timeout = 0
-            for _ in range(60): # seek for continous 50 transation days
+            for _ in range(50): # seek for continous 50 transation days
                 date = f"{day.year}-{day.month}-{day.day}"
                 res = tda.analyse_stock(tda.seek_td_by_date(date))
-                if res.get('profit', 0):
+                if res.get('profit', 0) is not None:
                     total += res.get('profit', 0)
                     total_won += res.get('won', 0)
                     total_lose += res.get('lose', 0)
@@ -215,7 +214,7 @@ if __name__ == '__main__':
                 day = day + '1d'
             row = [p['duration'], p['stop_profit'], p['stop_loss'], total, total_won, total_lose, total_timeout]
             print(row)
-            with open(f'./reports/{p}_report.csv', 'a', newline='') as report:
+            with open(f'./{start_day}_report.csv', 'a', newline='') as report:
                 writer = csv.writer(report)
                 writer.writerow(row)
 
