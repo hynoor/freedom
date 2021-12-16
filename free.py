@@ -76,6 +76,10 @@ class TDAnanalyser(object):
                     td_info = {}
                     td_info['code'] = code
                     td_info['date'] = day_k[ninth_idx]['date']
+                    td_info['td_sequence'] = day_k[ninth_idx-9:ninth_idx]
+                    td_info['turn'] = sum([float(x['turn']) for x in td_info['td_sequence']])
+                    td_info['td_range'] = (float(day_k[ninth_idx-9]['close']) \
+                            - float(day_k[ninth_idx]['close']))/float(day_k[ninth_idx-9]['close'])
                     td_info['td_day'] = day_k[ninth_idx]
                     td_info['post_days'] = day_k[ninth_idx+1:ninth_idx+self.post_days+1]
                     td_info['post_high'] = max([float(day['high'])] for day in td_info['post_days'][1:])[0]
@@ -146,7 +150,8 @@ class TDAnanalyser(object):
         for td in td_list:
             if td['td_day']['date'] == date:
                 target_list.append(td)
-        random.shuffle(target_list)
+        # random.shuffle(target_list)
+        sorted(target_list, key=lambda x: x['turn'], reverse=False)
         return target_list[:self.num_stock if len(target_list) >= 5 else len(target_list)]
         #return target_list
 
