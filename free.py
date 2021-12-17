@@ -88,6 +88,7 @@ class TDAnanalyser(object):
                     td_info['next_day_low'] = float(td_info['post_days'][0]['low'])
                     td_info['last_day_high'] = float(td_info['post_days'][-1]['high'])
                     td_info['last_day_low'] = float(td_info['post_days'][-1]['low'])
+                    td_info['last_day_close'] = float(td_info['post_days'][-1]['close'])
                     td_info['is_true'] = True if float(td_info['post_high']) > float(td_info['td_day']['close']) else False
                     td_results.append(td_info)
                     td_count = 0
@@ -110,7 +111,8 @@ class TDAnanalyser(object):
             res['result'] = 'lose'
             res['profit'] = -int(self.tx_amount*(self.stop_loss - self.tx_fee))
         else:
-            sold = random.uniform(data['last_day_high'], data['last_day_low'])
+            #sold = random.uniform(data['last_day_high'], data['last_day_low'])
+            sold = data['last_day_close']
             res['profit'] = int(self.tx_amount*((sold-cost)/cost-self.tx_fee))
             res['result'] = 'timeout'
         res['code'] = data['code']
@@ -151,8 +153,8 @@ class TDAnanalyser(object):
             if td['td_day']['date'] == date:
                 target_list.append(td)
         # random.shuffle(target_list)
-        sorted(target_list, key=lambda x: x['turn'], reverse=False)
-        return target_list[:self.num_stock if len(target_list) >= 5 else len(target_list)]
+        sorted(target_list, key=lambda x: x['turn'], reverse=True)
+        return target_list[:1 if len(target_list) >= 1 else len(target_list)]
         #return target_list
 
     def stats(self, quantity=100):
@@ -183,43 +185,45 @@ class TDATests(object):
 if __name__ == '__main__':
     
     #for p in [A1, A2, A3]:
-    start_day = '2020-12-28'
     headers = ['stop_profit', 'stop_loss', 'duration', 'numb_profit', 'num_win', 'num_loss', 'num_timeout' ]
-    import csv
-    with open(f'./{start_day}_report.csv', 'a', newline='') as report:
-        writer = csv.writer(report)
-        writer.writerow(headers)
     total = 0
     total_won = 0
     total_lose = 0
     total_timeout = 0
     profile_list = [
+        #duration_4days_small_range,
         duration_6days_small_range,
-        duration_8days_small_range,
-        duration_10days_small_range,
-        duration_12days_small_range
+        #duration_8days_small_range,
+        #duration_10days_small_range,
+        #duration_12days_small_range
     ]
     for p in profile_list:
+        start_date, end_date = p['history_period']
+        import csv
+        with open(f'./{start_date}_report.csv', 'a', newline='') as report:
+            writer = csv.writer(report)
+            writer.writerow(headers)
         tda = TDAnanalyser(data_path='./zz500_day_history.csv', profile=p)
-        print_json(data=p)
-        for _ in range(5):
-            day = Date(start_day)
+        for _ in range(1):
+            day = Date(start_date)
             total = 0
             total_won = 0
             total_lose = 0
             total_timeout = 0
-            for _ in range(50): # seek for continous 50 transation days
-                date = f"{day.year}-{day.month}-{day.day}"
-                res = tda.analyse_stock(tda.seek_td_by_date(date))
-                if res.get('profit', 0) is not None:
-                    total += res.get('profit', 0)
-                    total_won += res.get('won', 0)
-                    total_lose += res.get('lose', 0)
-                    total_timeout += res.get('timeout', 0)
+            while day <= end_date:
+                if day.weekday in [1, 2, 3, 4, 5]:
+                    date = f"{day.year}-{day.month}-{day.day}"
+                    res = tda.analyse_stock(tda.seek_td_by_date(date))
+                    print(f"Date: {date} | Won: {res.get('won', 0)} | Lose: {res.get('lose', 0)} | Timeout: {res.get('timeout', 0)} | Profit: {res.get('profit', 0)}")
+                    if res.get('profit', 0) is not None:
+                        total += res.get('profit', 0)
+                        total_won += res.get('won', 0)
+                        total_lose += res.get('lose', 0)
+                        total_timeout += res.get('timeout', 0)
                 day = day + '1d'
             row = [p['duration'], p['stop_profit'], p['stop_loss'], total, total_won, total_lose, total_timeout]
             print(row)
-            with open(f'./{start_day}_report.csv', 'a', newline='') as report:
+            with open(f'./{start_date}_report.csv', 'a', newline='') as report:
                 writer = csv.writer(report)
                 writer.writerow(row)
 
