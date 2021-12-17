@@ -204,6 +204,7 @@ if __name__ == '__main__':
             writer = csv.writer(report)
             writer.writerow(headers)
         tda = TDAnanalyser(data_path='./zz500_day_history.csv', profile=p)
+        print_json(data=p)
         for _ in range(1):
             day = Date(start_date)
             total = 0
