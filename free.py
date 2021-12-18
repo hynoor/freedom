@@ -82,8 +82,10 @@ class TDAnanalyser(object):
                             - float(day_k[ninth_idx]['close']))/float(day_k[ninth_idx-9]['close'])
                     td_info['td_day'] = day_k[ninth_idx]
                     td_info['post_days'] = day_k[ninth_idx+1:ninth_idx+self.post_days+1]
-                    td_info['post_high'] = max([float(day['high'])] for day in td_info['post_days'][1:])[0]
-                    td_info['post_low'] = min([float(day['low'])] for day in td_info['post_days'][1:])[0]
+                    td_info['post_high_list'] = [float(day['high']) for day in td_info['post_days'][1:]]
+                    td_info['post_low_list'] = [float(day['low']) for day in td_info['post_days'][1:]]
+                    td_info['post_high'] = max(td_info['post_high_list'])
+                    td_info['post_low'] = min(td_info['post_low_list'])
                     td_info['next_day_high'] = float(td_info['post_days'][0]['high'])
                     td_info['next_day_low'] = float(td_info['post_days'][0]['low'])
                     td_info['last_day_high'] = float(td_info['post_days'][-1]['high'])
@@ -103,23 +105,44 @@ class TDAnanalyser(object):
     def gamble(self, data, stop_loss=0.02, stop_profit=0.04, tx_fee=0.003, tx_amount=100000):
         res = {}
         td_close = float(data['td_day']['close'])
-        cost = random.uniform(data['next_day_low'], td_close) # only buy when price under last close
-        if data['post_high'] >= cost*(1+self.stop_profit):
-            res['result'] = 'won'
-            res['profit'] = int(self.tx_amount*(self.stop_profit - self.tx_fee))
-        elif data['post_low'] <= cost*(1-self.stop_loss):
-            res['result'] = 'lose'
-            res['profit'] = -int(self.tx_amount*(self.stop_loss - self.tx_fee))
-        else:
+        when_won, when_lose = None, None
+        #cost = random.uniform(data['next_day_low'], td_close) # only buy when price under last close
+        cost = td_close * 0.995 # only buy when price under last close
+        lower_prices = [p for p in data['post_low_list'] if p <= cost*(1-self.stop_loss)]
+        higher_prices = [p for p in data['post_high_list'] if p <= cost*(1+self.stop_profit)]
+        #if data['post_high'] >= cost*(1+self.stop_profit):
+        if higher_prices:
+           when_won = data['post_high_list'].index(higher_prices[0]) + 1
+           res['result'] = 'won'
+        if lower_prices:
+           when_lose = data['post_low_list'].index(lower_prices[0]) + 1
+           res['result'] = 'undef' if res.get('result', None) == 'won' else 'lose'
+        if res.get('result', None) is None:
             #sold = random.uniform(data['last_day_high'], data['last_day_low'])
             sold = data['last_day_close']
             res['profit'] = int(self.tx_amount*((sold-cost)/cost-self.tx_fee))
             res['result'] = 'timeout'
+        if res.get('result', None) == 'won':
+            res['profit'] = int(self.tx_amount*(self.stop_profit - self.tx_fee))
+            res['sell_date'] = Date(data['date']) + when_won
+        elif res.get('result', None) == 'lose':
+            res['profit'] = -int(self.tx_amount*(self.stop_loss - self.tx_fee))
+            res['sell_date'] = Date(data['date']) + when_lose
+        elif res['result'] == 'undef':
+            if when_lose <= when_won: # use more conservative way to calcuate
+                res['result'] = 'lose'
+                res['profit'] = -int(self.tx_amount*(self.stop_loss - self.tx_fee))
+                res['sell_date'] = Date(data['date']) + when_lose
+            else:
+                res['result'] = 'won'
+                res['profit'] = int(self.tx_amount*(self.stop_profit - self.tx_fee))
+                res['sell_date'] = Date(data['date']) + when_won
         res['code'] = data['code']
-        res['date'] = data['date']
+        res['buy_date'] = Date(data['date'])
+        res['sell_date'] = Date(data['date']) + len(data['post_days'])
         return res
 
-    def analyse_stock(self, sequences=[]):
+    def analyse_td_sequences(self, sequences=[]):
         if not sequences:
             return {}
         ret = {}
@@ -144,7 +167,7 @@ class TDAnanalyser(object):
         ret['won_rate'] = str(int(ret['won']/ret['count']*100)) + '%'
         return ret
 
-    def seek_td_by_date(self, date=None):
+    def seek_td_by_date(self, date=None, num_stock=1, sort_by='turn', sort_type='ascend'):
         td_list = []
         target_list = []
         for code in self._stocks.keys():
@@ -152,9 +175,9 @@ class TDAnanalyser(object):
         for td in td_list:
             if td['td_day']['date'] == date:
                 target_list.append(td)
-        # random.shuffle(target_list)
-        sorted(target_list, key=lambda x: x['turn'], reverse=True)
-        return target_list[:1 if len(target_list) >= 1 else len(target_list)]
+        if_reverse=True if sort_type=='descend' else False
+        sorted(target_list, key=lambda x: x[sort_by], reverse=if_reverse)
+        return target_list[:num_stock if len(target_list) >= num_stock else len(target_list)]
         #return target_list
 
     def stats(self, quantity=100):
@@ -162,7 +185,7 @@ class TDAnanalyser(object):
         res['rate_list'] = []
         random_indexes = random.sample(range(0, len(self._stocks.keys())), quantity)
         for idx in random_indexes:
-            res['rate_list'].append(self.analyse_stock(list(self._stocks.keys())[idx]))
+            res['rate_list'].append(self.analyse_td_sequences(list(self._stocks.keys())[idx]))
         res['max'] = max(res['rate_list'])
         res['max'] = min(res['rate_list'])
         res['count'] = len(res['rate_list'])
@@ -191,10 +214,10 @@ if __name__ == '__main__':
     total_lose = 0
     total_timeout = 0
     profile_list = [
-        #duration_4days_small_range,
+        duration_4days_small_range,
         duration_6days_small_range,
-        #duration_8days_small_range,
-        #duration_10days_small_range,
+        duration_8days_small_range,
+        duration_10days_small_range,
         #duration_12days_small_range
     ]
     for p in profile_list:
@@ -204,8 +227,8 @@ if __name__ == '__main__':
             writer = csv.writer(report)
             writer.writerow(headers)
         tda = TDAnanalyser(data_path='./zz500_day_history.csv', profile=p)
-        print_json(data=p)
-        for _ in range(1):
+        #print_json(data=p)
+        for _ in range(1): # when variable(s) determined we just need one calculate
             day = Date(start_date)
             total = 0
             total_won = 0
@@ -214,13 +237,16 @@ if __name__ == '__main__':
             while day <= end_date:
                 if day.weekday in [1, 2, 3, 4, 5]:
                     date = f"{day.year}-{day.month}-{day.day}"
-                    res = tda.analyse_stock(tda.seek_td_by_date(date))
-                    print(f"Date: {date} | Won: {res.get('won', 0)} | Lose: {res.get('lose', 0)} | Timeout: {res.get('timeout', 0)} | Profit: {res.get('profit', 0)}")
-                    if res.get('profit', 0) is not None:
-                        total += res.get('profit', 0)
-                        total_won += res.get('won', 0)
-                        total_lose += res.get('lose', 0)
-                        total_timeout += res.get('timeout', 0)
+                    res = tda.analyse_td_sequences(tda.seek_td_by_date(date, p['num_stock']))
+                    if not res:
+                        pass
+                    else:
+                        #print(f"Date: {date} | Won: {res.get('won', 0)} | Lose: {res.get('lose', 0)} | Timeout: {res.get('timeout', 0)} | Profit: {res.get('profit', 0)}")
+                        if res.get('profit', 0) is not None:
+                            total += res.get('profit', 0)
+                            total_won += res.get('won', 0)
+                            total_lose += res.get('lose', 0)
+                            total_timeout += res.get('timeout', 0)
                 day = day + '1d'
             row = [p['duration'], p['stop_profit'], p['stop_loss'], total, total_won, total_lose, total_timeout]
             print(row)
