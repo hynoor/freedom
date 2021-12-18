@@ -109,7 +109,7 @@ class TDAnanalyser(object):
         #cost = random.uniform(data['next_day_low'], td_close) # only buy when price under last close
         cost = td_close * 0.995 # only buy when price under last close
         lower_prices = [p for p in data['post_low_list'] if p <= cost*(1-self.stop_loss)]
-        higher_prices = [p for p in data['post_high_list'] if p <= cost*(1+self.stop_profit)]
+        higher_prices = [p for p in data['post_high_list'] if p >= cost*(1+self.stop_profit)]
         #if data['post_high'] >= cost*(1+self.stop_profit):
         if higher_prices:
            when_won = data['post_high_list'].index(higher_prices[0]) + 1
