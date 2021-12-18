@@ -23,6 +23,7 @@ class TDAnanalyser(object):
         self.tx_amount = profile.get('tx_amount', 0)
         self.period = profile.get('history_period', None)
         self.num_stock = profile.get('num_stock', 0)
+        self.cost_discount = profile.get('cost_discount', 0)
 
         self._history = self.csv2json(data_path)
         self._stocks = self.build_stocks()
@@ -107,7 +108,9 @@ class TDAnanalyser(object):
         td_close = float(data['td_day']['close'])
         when_won, when_lose = None, None
         #cost = random.uniform(data['next_day_low'], td_close) # only buy when price under last close
-        cost = td_close * 0.995 # only buy when price under last close
+        cost = td_close * (1 - self.cost_discount) # only buy when price under last close
+        if data['next_day_low'] > cost:
+            return {}
         lower_prices = [p for p in data['post_low_list'] if p <= cost*(1-self.stop_loss)]
         higher_prices = [p for p in data['post_high_list'] if p >= cost*(1+self.stop_profit)]
         #if data['post_high'] >= cost*(1+self.stop_profit):
@@ -154,6 +157,8 @@ class TDAnanalyser(object):
         ret['detail'] = {}
         for td in sequences:
             result = self.gamble(td)
+            if not result:
+                continue
             ret['count'] += 1
             ret['profit'] += int(result['profit'])
             if result['result'] == 'won':
@@ -164,7 +169,7 @@ class TDAnanalyser(object):
                 ret['timeout'] += 1
             ret['code'] = td['td_day']['code']
             ret['detail'][result['code']] = result
-        ret['won_rate'] = str(int(ret['won']/ret['count']*100)) + '%'
+        #ret['won_rate'] = str(int(ret['won']/ret['count']*100)) + '%'
         return ret
 
     def seek_td_by_date(self, date=None, num_stock=1, sort_by='turn', sort_type='ascend'):
@@ -217,7 +222,7 @@ if __name__ == '__main__':
         duration_4days_small_range,
         duration_6days_small_range,
         duration_8days_small_range,
-        duration_10days_small_range,
+        #duration_10days_small_range,
         #duration_12days_small_range
     ]
     for p in profile_list:
